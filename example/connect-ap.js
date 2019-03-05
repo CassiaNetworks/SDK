@@ -4,6 +4,9 @@ var IP = '192.168.0.38';
 
 co(function *() {
   var r = new Router(IP);
+
+  var info = yield r.info();
+  console.log(info);
   
   var list = yield r.getConnectedDevices();
   console.log(list);
