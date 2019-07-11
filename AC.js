@@ -80,10 +80,6 @@ class AC extends Router {
   * getOnlineRouters() {
     return yield this.req('/ac/ap');
   }
-
-  * getStartId() {
-    return yield this.req('/start-id');
-  }
 }
 
 module.exports = AC;

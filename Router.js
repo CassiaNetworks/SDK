@@ -181,7 +181,7 @@ class Router extends EventEmitter {
     return es;
   }
   * listenConnectionState() {
-    const es = yield this.sse(`/management/nodes/connection-state`);
+    const es = yield this.sse({url: `/management/nodes/connection-state`});
     es.on('message', (e) => {
       if (e.data.match('keep-alive')) {
         return;
