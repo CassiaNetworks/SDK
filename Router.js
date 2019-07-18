@@ -175,9 +175,9 @@ class Router extends EventEmitter {
       }
       this.emit('notify', JSON.parse(e.data));
     });
-    es.onerror = function (e) {
+    es.on('error', (e) => {
       this.emit('error', e);
-    };
+    });
     return es;
   }
   * listenConnectionState() {
