@@ -51,6 +51,7 @@ class Router extends EventEmitter {
   }
 
   sse(options) {
+    if (typeof options == 'string') options = {url: options};
     options.headers = Object.assign({}, this.headers, options.headers);
     options.qs = Object.assign({}, this.qs, options.qs, {event:1});
     return new Promise((resolve, reject) => {
