@@ -30,6 +30,7 @@ class AC extends Router {
       });
     }, (expires - 10) * 1000);
   }
+
   /**
    * get router object to call restful api via AC
    * @param {String} mac router mac 
@@ -55,7 +56,7 @@ class AC extends Router {
   }
   /**
    * @param routerMac router mac, optional
-   * @return  position by router *
+   * @return position by router *
    **/
   * getLocationByRouter(routerMac) {
     if (routerMac) {
@@ -79,6 +80,68 @@ class AC extends Router {
 
   * getOnlineRouters() {
     return yield this.req('/ac/ap');
+  }
+
+  /**
+   * enable or disable router auto-selection function
+   * @param _switch - switch
+   * @return http response body
+   */
+  * apsSelectionSwitch(_switch=true) {
+    return yield this.req({
+      url: '/aps/ap-select-switch',
+      method: 'POST',
+      body: {
+        flag: _switch ? 1 : 0
+      }
+    });
+  }
+
+  /**
+   * connect device by auto-selecting one router
+   * @param {*} aps routers' list
+   * @param {*} devices devices' list(now only support one device)
+   * @return http response body
+   */
+  * apsSelectionConnect(aps, devices) {
+    return yield this.req({
+      url: '/aps/connections/connect',
+      method: 'POST',
+      body: {
+        aps: aps,
+        devices: devices
+      }
+    });
+  }
+
+  /**
+   * disconnect device
+   * @param {*} devices devices' list(now only support one device)
+   * @return http response body
+   */
+  * apsSelectionDisconnect(devices) {
+    return yield this.req({
+      url: '/aps/connections/disconnect',
+      method: 'POST',
+      body: {
+        devices: devices
+      }
+    });
+  }
+
+  /**
+   * create one combined SSE connection
+   * @return {Object} an instance of EventSource
+   */
+  * apsEvents() {
+    let es = yield this.sse('/aps/events');
+    es.on('message', (msg) => {
+      if (msg.data.match('keep-alive')) {
+        return;
+      }
+      this.emit('aps-events', JSON.parse(msg.data));
+    });
+    return es;
   }
 }
 
