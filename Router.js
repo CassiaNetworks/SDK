@@ -122,9 +122,11 @@ class Router extends EventEmitter {
    * @param {String} handle
    * @param {String} value
    * */
-  * writeByHandle(deviceMac, handle, value) {
+  * writeByHandle(deviceMac, handle, value, noresponse=false) {
+    let url = `/gatt/nodes/${deviceMac}/handle/${handle}/value/${value}`;
+    if (noresponse) url = `/gatt/nodes/${deviceMac}/handle/${handle}/value/${value}/?noresponse=1`;
     return yield this.req({
-      url: `/gatt/nodes/${deviceMac}/handle/${handle}/value/${value}`,
+      url: url,
       method: 'GET'});
   }
 
