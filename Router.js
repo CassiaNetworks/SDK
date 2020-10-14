@@ -66,8 +66,9 @@ class Router extends EventEmitter {
       });
     });
   }
-  * info() {
-    return yield this.req('/cassia/info');
+  
+  info() {
+    return this.req('/cassia/info');
   }
   /**
    * let the hub start scan, this method will return a EventSource
@@ -78,19 +79,25 @@ class Router extends EventEmitter {
    * filter_uuid <uuid1>,<uuid2>...
    * @return EventSource
    * */
-  * scan(options) {
-    let es = yield this.sse({url: '/gap/nodes', qs: options});
-    es.on('message', (msg) => {
-      if (msg.data.match('keep-alive')) {
-        return;
-      }
-      if (msg.data.match('offline')) {
-        this.emit('error', 'offline');
-        return;
-      }
-      this.emit('scan', JSON.parse(msg.data));
+  scan(options) {
+    return this.sse({url: '/gap/nodes', qs: options}).then((es) => {
+      es.on('message', (msg) => {
+        if (msg.data.match('keep-alive')) return;
+        if (msg.data.match('offline')) {
+          this.emit('error', 'offline');
+          return;
+        }
+        try {
+          this.emit('scan', JSON.parse(msg.data));
+        } catch (e) {
+          this.emit('error', e);
+        }
+      });
+      es.on('error', (e) => {
+        this.emit('error', e);
+      });
+      return es;
     });
-    return es;
   }
 
   /**
@@ -99,8 +106,8 @@ class Router extends EventEmitter {
    * @param {String} type public/random
    * @param {Integer} timeout in milliseconds
    * */
-  * connect(deviceMac, type, timeout) {
-    return yield this.req({
+  connect(deviceMac, type, timeout) {
+    return this.req({
       url: `/gap/nodes/${deviceMac}/connection`,
       method: 'POST',
       body: {type: type || 'public', timeout: timeout || 60000}});
@@ -110,8 +117,8 @@ class Router extends EventEmitter {
    * disconnect device
    * @param {String} deviceMac
    * */
-  * disconnect(deviceMac) {
-    return yield this.req({
+  disconnect(deviceMac) {
+    return this.req({
       url: `/gap/nodes/${deviceMac}/connection`,
       method: 'DELETE'});
   }
@@ -122,10 +129,10 @@ class Router extends EventEmitter {
    * @param {String} handle
    * @param {String} value
    * */
-  * writeByHandle(deviceMac, handle, value, noresponse=false) {
+  writeByHandle(deviceMac, handle, value, noresponse=false) {
     let url = `/gatt/nodes/${deviceMac}/handle/${handle}/value/${value}`;
     if (noresponse) url = `/gatt/nodes/${deviceMac}/handle/${handle}/value/${value}/?noresponse=1`;
-    return yield this.req({
+    return this.req({
       url: url,
       method: 'GET'});
   }
@@ -135,10 +142,12 @@ class Router extends EventEmitter {
    * @param {String} deviceMac
    * @param {Object} values [{handle:<handle>, value:<value>}...]
    * */
-  * writeMulti(deviceMac, values) {
-    for (let item of values) {
-      yield this.writeByHandle(deviceMac, item.handle, item.value);
-    }
+  writeMulti(deviceMac, values) {
+    return values.reduce((chain, current) => {
+      return chain.then((last) => {
+        return this.writeByHandle(deviceMac, current.handle, current.value);
+      });
+    });
   }
 
   /**
@@ -146,8 +155,8 @@ class Router extends EventEmitter {
    * @param {String} deviceMac
    * @param {String} handle
    * */
-  * readByHandle(deviceMac, handle) {
-    return yield this.req({
+  readByHandle(deviceMac, handle) {
+    return this.req({
       url: `/gatt/nodes/${deviceMac}/handle/${handle}/value`,
       method: 'GET'});
   }
@@ -156,53 +165,58 @@ class Router extends EventEmitter {
    * @param {String} deviceMac
    * @param {String} [uuid]
    * */
-  * getCharacteristics(deviceMac, uuid) {
-    return yield this.req({
+  getCharacteristics(deviceMac, uuid) {
+    return this.req({
       url: `/gatt/nodes/${deviceMac}/characteristics`,
       qs: {uuid: uuid},
       method: 'GET'});
   }
-  * getConnectedDevices() {
-    return yield this.req({url: '/gap/nodes', qs: {'connection_state': 'connected'}});
+  getConnectedDevices() {
+    return this.req({url: '/gap/nodes', qs: {'connection_state': 'connected'}});
   }
 
-  * listenNotify() {
-    let es = yield this.sse({url: '/gatt/nodes'});
-    es.on('message', (e) => {
-      if (e.data.match('keep-alive')) {
-        return;
-      };
-      if (e.data.match('offline')) {
-        this.emit('error', 'offline');
-        return;
-      }
-      this.emit('notify', JSON.parse(e.data));
-    });
-    es.on('error', (e) => {
-      this.emit('error', e);
-    });
-    return es;
+  listenNotify() {
+    return this.sse({url: '/gatt/nodes'}).then((es) => {
+      es.on('message', (msg) => {
+        if (msg.data.match('keep-alive')) return;
+        if (msg.data.match('offline')) {
+          this.emit('error', 'offline');
+          return;
+        }
+        try {
+          this.emit('notify', JSON.parse(msg.data));
+        } catch (e) {
+          this.emit('error', e);
+        }
+      });
+      es.on('error', (e) => {
+        this.emit('error', e);
+      });
+      return es;
+    })
   }
-  * listenConnectionState() {
-    const es = yield this.sse({url: `/management/nodes/connection-state`});
-    es.on('message', (e) => {
-      if (e.data.match('keep-alive')) {
-        return;
-      }
-      if (e.data.match('offline')) {
-        this.emit('error', 'offline');
-        return;
-      }
-      this.emit('connection_state', JSON.parse(e.data));
+  listenConnectionState() {
+    return this.sse({url: `/management/nodes/connection-state`}).then((es) => {
+      es.on('message', (msg) => {
+        if (msg.data.match('keep-alive')) return;
+        if (msg.data.match('offline')) {
+          this.emit('error', 'offline');
+          return;
+        }
+        try{
+          this.emit('connection_state', JSON.parse(msg.data));
+        } catch (e) {
+          this.emit('error', e);
+        }
+      });
+      es.on('error', (e) => {
+        this.emit('error', e);
+      });
+      return es;
     });
-    es.on('error', (e) => {
-      this.emit('error', e);
-    });
-    return es;
   }
 
   destroy() {
-    debug('destroy router');
     this.removeAllListeners();
   }
 }

@@ -1,6 +1,5 @@
 const Router = require('./Router');
 const debug = require('debug')('cassia-ac');
-const co = require('co');
 
 class AC extends Router {
   constructor(options) {
@@ -10,8 +9,8 @@ class AC extends Router {
     }
   }
 
-  * auth(developer, secret) {
-    let authinfo = yield this.req({url: '/oauth2/token',
+  auth(developer, secret, autoRefresh=true) {
+    return this.req({url: '/oauth2/token',
       method: 'POST',
       auth: {
         user: developer,
@@ -20,15 +19,14 @@ class AC extends Router {
       body: {
         grant_type: 'client_credentials'
       }
+    }).then(authinfo => {
+      let token = authinfo['access_token'];
+      let expires = authinfo['expires_in'];
+      this.headers.Authorization = 'Bearer ' + token;
+      if (autoRefresh) {
+        setTimeout(auth.bind(this, developer, secret, true), (expires - 10) * 1000);
+      }
     });
-    let token = authinfo['access_token'];
-    let expires = authinfo['expires_in'];
-    this.headers.Authorization = 'Bearer ' + token;
-    setTimeout(() => {
-      co(function *(){
-        yield auth(developer, secret);
-      });
-    }, (expires - 10) * 1000);
   }
 
   /**
@@ -44,25 +42,25 @@ class AC extends Router {
     });
   }
 
-  * getAllRouters() {
-    return yield this.req('/ac/ap');
+  getAllRouters() {
+    return this.req('/ac/ap');
   }
 
   /**
    * @return {Object} an instance of EventSource
    * */
-  * routerStatus() {
-    return yield this.sse('/cassia/hubStatus');
+  routerStatus() {
+    return this.sse('/cassia/hubStatus');
   }
   /**
    * @param routerMac router mac, optional
    * @return position by router *
    **/
-  * getLocationByRouter(routerMac) {
+  getLocationByRouter(routerMac) {
     if (routerMac) {
-      return yield this.req(`/middleware/position/by-ap/${routerMac}`);
+      return this.req(`/middleware/position/by-ap/${routerMac}`);
     } else {
-      return yield this.req('/middleware/position/by-ap/*');
+      return this.req('/middleware/position/by-ap/*');
     }
   };
   /**
@@ -70,16 +68,16 @@ class AC extends Router {
    * @param deviceMac - device mac optional
    * @return device positon
    * */
-  * getLocationByDevice(deviceMac) {
+  getLocationByDevice(deviceMac) {
     if (deviceMac) {
-      return yield this.req(`/middleware/position/by-device/${deviceMac}`);
+      return this.req(`/middleware/position/by-device/${deviceMac}`);
     } else {
-      return yield this.req(`/middleware/position/by-device/*`);
+      return this.req(`/middleware/position/by-device/*`);
     }
   }
 
-  * getOnlineRouters() {
-    return yield this.req('/ac/ap');
+  getOnlineRouters() {
+    return this.req('/ac/ap');
   }
 
   /**
@@ -87,8 +85,8 @@ class AC extends Router {
    * @param _switch - switch
    * @return http response body
    */
-  * apsSelectionSwitch(_switch=true) {
-    return yield this.req({
+  apsSelectionSwitch(_switch=true) {
+    return this.req({
       url: '/aps/ap-select-switch',
       method: 'POST',
       body: {
@@ -103,8 +101,8 @@ class AC extends Router {
    * @param {*} devices devices' list(now only support one device)
    * @return http response body
    */
-  * apsSelectionConnect(aps, devices) {
-    return yield this.req({
+  apsSelectionConnect(aps, devices) {
+    return this.req({
       url: '/aps/connections/connect',
       method: 'POST',
       body: {
@@ -119,8 +117,8 @@ class AC extends Router {
    * @param {*} devices devices' list(now only support one device)
    * @return http response body
    */
-  * apsSelectionDisconnect(devices) {
-    return yield this.req({
+  apsSelectionDisconnect(devices) {
+    return this.req({
       url: '/aps/connections/disconnect',
       method: 'POST',
       body: {
@@ -133,15 +131,21 @@ class AC extends Router {
    * create one combined SSE connection
    * @return {Object} an instance of EventSource
    */
-  * apsEvents() {
-    let es = yield this.sse('/aps/events');
-    es.on('message', (msg) => {
-      if (msg.data.match('keep-alive')) {
-        return;
-      }
-      this.emit('aps-events', JSON.parse(msg.data));
+  apsEvents() {
+    return this.sse('/aps/events').then(es => {
+      es.on('message', (msg) => {
+        if (msg.data.match('keep-alive')) return;
+        try{
+          this.emit('aps-events', JSON.parse(msg.data));
+        } catch (e) {
+          this.emit('error', e);
+        }
+      });
+      es.on('error', (e) => {
+        this.emit('error', e);
+      });
+      return es;
     });
-    return es;
   }
 }
 
