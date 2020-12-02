@@ -82,11 +82,6 @@ class Router extends EventEmitter {
   scan(options) {
     return this.sse({url: '/gap/nodes', qs: options}).then((es) => {
       es.on('message', (msg) => {
-        if (msg.data.match('keep-alive')) return;
-        if (msg.data.match('offline')) {
-          this.emit('error', 'offline');
-          return;
-        }
         try {
           this.emit('scan', JSON.parse(msg.data));
         } catch (e) {
@@ -178,11 +173,6 @@ class Router extends EventEmitter {
   listenNotify() {
     return this.sse({url: '/gatt/nodes'}).then((es) => {
       es.on('message', (msg) => {
-        if (msg.data.match('keep-alive')) return;
-        if (msg.data.match('offline')) {
-          this.emit('error', 'offline');
-          return;
-        }
         try {
           this.emit('notify', JSON.parse(msg.data));
         } catch (e) {
@@ -198,11 +188,6 @@ class Router extends EventEmitter {
   listenConnectionState() {
     return this.sse({url: `/management/nodes/connection-state`}).then((es) => {
       es.on('message', (msg) => {
-        if (msg.data.match('keep-alive')) return;
-        if (msg.data.match('offline')) {
-          this.emit('error', 'offline');
-          return;
-        }
         try{
           this.emit('connection_state', JSON.parse(msg.data));
         } catch (e) {
