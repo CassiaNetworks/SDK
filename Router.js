@@ -67,8 +67,14 @@ class Router extends EventEmitter {
     });
   }
   
-  info() {
-    return this.req('/cassia/info');
+  info(conf) {
+    if (conf) {
+      return this.req({url: '/cassia/info',
+                  method: 'POST',
+                  body: conf});
+    } else {
+      return this.req('/cassia/info');
+    }
   }
   /**
    * let the hub start scan, this method will return a EventSource
