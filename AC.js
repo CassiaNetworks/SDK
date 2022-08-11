@@ -24,7 +24,7 @@ class AC extends Router {
       let expires = authinfo['expires_in'];
       this.headers.Authorization = 'Bearer ' + token;
       if (autoRefresh) {
-        setTimeout(auth.bind(this, developer, secret, true), (expires - 10) * 1000);
+        setTimeout(this.auth.bind(this, developer, secret, true), (expires - 10) * 1000);
       }
     });
   }
