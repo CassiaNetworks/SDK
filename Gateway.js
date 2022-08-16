@@ -1,8 +1,8 @@
-const EventEmitter = require('events');
-const querystring = require('querystring');
-const debug = require('debug')('cassia-router');
-const EventSource = require('eventsource');
-const request = require('request');
+import EventEmitter from 'node:events';
+import {URLSearchParams} from 'node:url';
+import EventSource from 'eventsource';
+// const {EventSource} = pkg;
+import got, {Options} from 'got';
 
 /**
  * create a Hub which is a sub class of EventEmitter,
@@ -15,7 +15,7 @@ const request = require('request');
  * @class
  * @param {Object} options {"address":<http address>, "headers":<headers>, "qs":<querystring>}
  * */
-class Router extends EventEmitter {
+class Gateway extends EventEmitter {
   constructor(options) {
     super();
     options = options || {};
@@ -35,19 +35,27 @@ class Router extends EventEmitter {
   req(options) {
     if (typeof options == 'string') options = {url: options};
     options.headers = Object.assign({}, this.headers, options.headers);
-    options.qs = Object.assign({}, this.qs, options.qs);
-    let opts = Object.assign({}, {method: 'GET', baseUrl: this.address, json: true}, options);
+    options.searchParams = Object.assign({}, this.qs, options.qs);
+    let opts = Object.assign({}, {method: 'GET', prefixUrl: this.address}, options);
+    opts.json = opts.body;
+    delete opts.body;
+    let url = opts.url;
+    if (url.startsWith('/')) url = url.substr(1);
+    delete opts.url;
+    delete opts.qs;
+    let gotOptions = new Options(opts);
     return new Promise((resolve, reject) => {
-      request(opts, function(err, response, body) {
-        if (err) return reject(err);
-        if (response && response.statusCode === 200) {
-          return resolve(body);
-        } else {
-          if (typeof body == 'object') body = JSON.stringify(body);
-          return reject(`${response.statusCode} ${body}`);
-        }
-      })
-    })
+        got(url, undefined, gotOptions).text().then((resp) => {
+            try{
+                let tryJson = JSON.parse(resp);
+                resolve(tryJson);
+            }catch(e) {
+                resolve(resp);
+            }
+        }).catch((err) => {
+            reject(err);
+        });
+    });
   }
 
   sse(options) {
@@ -55,7 +63,7 @@ class Router extends EventEmitter {
     options.headers = Object.assign({}, this.headers, options.headers);
     options.qs = Object.assign({}, this.qs, options.qs, {event:1});
     return new Promise((resolve, reject) => {
-      let es = new EventSource(`${this.address}${options.url}?${querystring.stringify(options.qs)}`, {
+      let es = new EventSource(`${this.address}${options.url}?${new URLSearchParams(options.qs).toString()}`, {
         headers: options.headers
       });
       es.once('open', () => {
@@ -212,4 +220,5 @@ class Router extends EventEmitter {
   }
 }
 
-module.exports = Router;
+// module.exports = Gateway;
+export {Gateway};

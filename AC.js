@@ -1,7 +1,7 @@
-const Router = require('./Router');
-const debug = require('debug')('cassia-ac');
+import {Gateway} from './Gateway.js';
+// const debug = require('debug')('cassia-ac');
 
-class AC extends Router {
+class AC extends Gateway {
   constructor(options) {
     super(options);
     if (!this.address.endsWith('api') || !this.address.endsWith('api/')) {
@@ -12,10 +12,8 @@ class AC extends Router {
   auth(developer, secret, autoRefresh=true) {
     return this.req({url: '/oauth2/token',
       method: 'POST',
-      auth: {
-        user: developer,
-        pass: secret,
-      },
+      username: developer,
+      password: secret,
       body: {
         grant_type: 'client_credentials'
       }
@@ -23,6 +21,7 @@ class AC extends Router {
       let token = authinfo['access_token'];
       let expires = authinfo['expires_in'];
       this.headers.Authorization = 'Bearer ' + token;
+      console.log('get token', token);
       if (autoRefresh) {
         setTimeout(this.auth.bind(this, developer, secret, true), (expires - 10) * 1000);
       }
@@ -33,9 +32,9 @@ class AC extends Router {
    * get router object to call restful api via AC
    * @param {String} mac router mac 
    */
-  getRouter(mac) {
+  getGateway(mac) {
     this.qs.mac = mac;
-    return new Router({
+    return new Gateway({
       address: this.address,
       qs: this.qs,
       headers: this.headers
@@ -149,4 +148,5 @@ class AC extends Router {
   }
 }
 
-module.exports = AC;
+// module.exports = AC;
+export {AC};

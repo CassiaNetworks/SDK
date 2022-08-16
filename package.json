@@ -1,6 +1,6 @@
 {
   "name": "node-cassia-sdk",
-  "version": "0.0.1",
+  "version": "2.0.0",
   "description": "cassia bluetooth sdk for nodejs",
   "main": "api.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "api",
     "node"
   ],
+  "type": "module",
   "author": "liyi@cassianetworks.com",
   "license": "MIT",
   "bugs": {
@@ -25,9 +26,6 @@
   "dependencies": {
     "debug": "^4.1.1",
     "eventsource": "git+https://github.com/CassiaNetworks/eventsource.git",
-    "request": "^2.88.0"
-  },
-  "devDependencies": {
-    "co": "^4.6.0"
+    "got": "^12.3.1"
   }
 }

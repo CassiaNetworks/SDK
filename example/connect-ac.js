@@ -1,26 +1,41 @@
-var co = require('co');
-var {AC} = require('../api');
+// import {Gateway, AC} from '../api.js'; // ES6 import
+const {AC} = await import('../api.js'); // CommonJS
+const AC_IP = '<ac_ip>';
+const AC_USER = '<user>';
+const AC_PASS = '<pass>';
+var GATEWAY_MAC = '<gateway_mac>';
 
-var AP_MAC = 'CC:1B:E0:E0:04:B4';
+async function main() {
+    var ac = new AC(AC_IP);
+    await ac.auth(AC_USER, AC_PASS);
 
-co(function *() {
-  var ac = new AC('192.168.0.227');
-  yield ac.auth('tester', '10b83f9a2e823c47');
+    var gateway = ac.getGateway(GATEWAY_MAC);
+    var info = await gateway.info();
+    console.log('get info', info);
 
-  var routers = yield ac.getAllRouters();
-  console.log(routers);
+    await gateway.info({name: "test name"});
 
-  var locs = yield ac.getLocationByRouter();
-  console.log(locs);
-  var r = ac.getRouter(AP_MAC);
-  yield r.scan();
-  r.on('scan', (d) => {
-    // console.log(d);
-  });
-  r.on('error', (e) => {
-    console.log(e);
-  });
-}).catch((e) => {
-  console.log(e);
-});
+    var list = await gateway.getConnectedDevices();
+    console.log('connected device list', list);
 
+    let scanSource = await gateway.scan({active:1});// you can stop scan with "scanSource.close();"
+    gateway.on('scan', (d) => {
+        console.log('scan data', d);
+    });
+
+    await gateway.listenNotify();
+    gateway.on('notify', (d) => {
+        console.log(d);
+    });
+    gateway.on('error', (e) => {
+        console.log('emit error', e);
+    });
+}
+
+(async function() {
+    try {
+        await main();
+    }catch(e) {
+        console.error(e);
+    }
+})();

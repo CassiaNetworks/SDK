@@ -1,4 +1,4 @@
-module.exports = {
-  Router: require('./Router'),
-  AC: require('./AC')
-}
+import {Gateway} from './Gateway.js';
+import {AC} from './AC.js';
+
+export {Gateway, AC};

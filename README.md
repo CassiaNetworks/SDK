@@ -1,3 +1,8 @@
+# v2.0
+use await/async to refact whole project, need nodejs version>10
+remove request lib, replace with got
+change "Router" to "Gateway" for consistent
+
 # SDK
 Cassia bluetooth SDK, for AC and AP, refer https://cassiasdk.docs.apiary.io
 
@@ -7,27 +12,46 @@ Cassia bluetooth SDK, for AC and AP, refer https://cassiasdk.docs.apiary.io
 
 # Sample
 ```javascript
-var co = require('co');
-var {Router} = require('node-cassia-sdk');
-var IP = '192.168.0.38';
+// import {Gateway, AC} from '../api.js'; // ES6 import
+const {AC} = await import('../api.js'); // CommonJS
+const AC_IP = '<ac_ip>';
+const AC_USER = '<user>';
+const AC_PASS = '<pass>';
+var GATEWAY_MAC = '<gateway_mac>';
 
-co(function *() {
-  var r = new Router(IP);  
-  var list = yield r.getConnectedDevices();
-  console.log(list);
-  let es = r.scan({active:1});
-  r.on('scan', (d) => {
-    console.log(d);
-  });
-  // you can stop scan use es.close();
-  yield r.listenNotify();
-  r.on('notify', (d) => {
-    console.log(d);
-  });
-  r.on('error', (e) => {
-    console.log('emit error', e);
-  });
-}).catch((e) => {
-  console.log('catch error', e);
-});
+async function main() {
+    var ac = new AC(AC_IP);
+    await ac.auth(AC_USER, AC_PASS);
+
+    var gateway = ac.getGateway(GATEWAY_MAC);
+    var info = await gateway.info();
+    console.log('get info', info);
+
+    await gateway.info({name: "test name"});
+
+    var list = await gateway.getConnectedDevices();
+    console.log('connected device list', list);
+
+    let scanSource = await gateway.scan({active:1});// you can stop scan with "scanSource.close();"
+    gateway.on('scan', (d) => {
+        console.log('scan data', d);
+    });
+
+    await gateway.listenNotify();
+    gateway.on('notify', (d) => {
+        console.log(d);
+    });
+    gateway.on('error', (e) => {
+        console.log('emit error', e);
+    });
+}
+
+(async function() {
+    try {
+        await main();
+    }catch(e) {
+        console.error(e);
+    }
+})();
+
 ```
