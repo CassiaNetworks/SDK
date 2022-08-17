@@ -1,16 +1,15 @@
 import EventEmitter from 'node:events';
 import {URLSearchParams} from 'node:url';
 import EventSource from 'eventsource';
-// const {EventSource} = pkg;
 import got, {Options} from 'got';
 
 /**
- * create a Hub which is a sub class of EventEmitter,
+ * create a Gateway which is a sub class of EventEmitter,
  * it has three builtin events
  *  - notify, will emit when bluetooth device has notify
- *  - scan, will emit when hub has scan data
- *  - connection_state will emit when hub connect or disconnect device
- *  - offline, will emit when hub offline
+ *  - scan, will emit when Gateway has scan data
+ *  - connection_state will emit when Gateway connect or disconnect device
+ *  - offline, will emit when Gateway offline
  *  - error, will emit when some error happen(include offline)
  * @class
  * @param {Object} options {"address":<http address>, "headers":<headers>, "qs":<querystring>}
@@ -85,7 +84,7 @@ class Gateway extends EventEmitter {
     }
   }
   /**
-   * let the hub start scan, this method will return a EventSource
+   * let the Gateway start scan, this method will return a EventSource
    * @param {Object} [option]
    * active 1/0
    * filter_name <name1>,<name2>...
