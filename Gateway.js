@@ -1,11 +1,12 @@
 const EventEmitter = require('events');
 const querystring = require('querystring');
-const debug = require('debug')('cassia-router');
-const EventSource = require('eventsource');
+const debug = require('debug')('cassia-gateway');
+const EventSource = require('./eventsource');
 const request = require('request');
+const fs = require('fs');
 
 /**
- * create a Hub which is a sub class of EventEmitter,
+ * create a Gateway which is a sub class of EventEmitter,
  * it has three builtin events
  *  - notify, will emit when bluetooth device has notify
  *  - scan, will emit when hub has scan data
@@ -15,7 +16,7 @@ const request = require('request');
  * @class
  * @param {Object} options {"address":<http address>, "headers":<headers>, "qs":<querystring>}
  * */
-class Router extends EventEmitter {
+class Gateway extends EventEmitter {
   constructor(options) {
     super();
     options = options || {};
@@ -23,6 +24,7 @@ class Router extends EventEmitter {
     this.address = fixProtocol(options.address);
     this.headers = options.headers || {};
     this.qs = options.qs || {};
+    this.mode = options.mode || 'standalone';
 
     function fixProtocol(address) {
       if (!address.startsWith('http')) {
@@ -36,7 +38,8 @@ class Router extends EventEmitter {
     if (typeof options == 'string') options = {url: options};
     options.headers = Object.assign({}, this.headers, options.headers);
     options.qs = Object.assign({}, this.qs, options.qs);
-    let opts = Object.assign({}, {method: 'GET', baseUrl: this.address, json: true}, options);
+    let opts = Object.assign({}, {method: 'GET', baseUrl: this.address, json: true, followAllRedirects: true, rejectUnauthorized: false}, options);
+    debug('send request', opts);
     return new Promise((resolve, reject) => {
       request(opts, function(err, response, body) {
         if (err) return reject(err);
@@ -50,10 +53,33 @@ class Router extends EventEmitter {
     })
   }
 
+  reqFile(options, path) {
+    if (typeof options == 'string') options = {url: options};
+    options.headers = Object.assign({}, this.headers, options.headers);
+    options.qs = Object.assign({}, this.qs, options.qs);
+    let opts = Object.assign({}, {method: 'GET', baseUrl: this.address, json: true, followAllRedirects: true, rejectUnauthorized: false}, options);
+    return new Promise((resolve, reject) => {
+      request(opts)
+        .on('error', e => reject(e))
+        .on('response', response => {
+          if (!response) reject('unknown error');
+          if (response.statusCode !== 200) {
+            reject(`${response.statusCode} ${response.body}`);
+          }
+        })
+        .on('end', function() {
+          resolve();
+        })
+        .pipe(fs.createWriteStream(path))
+    });
+  }
+
+
   sse(options) {
     if (typeof options == 'string') options = {url: options};
     options.headers = Object.assign({}, this.headers, options.headers);
     options.qs = Object.assign({}, this.qs, options.qs, {event:1});
+    debug('begin sse', options);
     return new Promise((resolve, reject) => {
       let es = new EventSource(`${this.address}${options.url}?${querystring.stringify(options.qs)}`, {
         headers: options.headers
@@ -66,16 +92,33 @@ class Router extends EventEmitter {
       });
     });
   }
-  
-  info(conf) {
-    if (conf) {
-      return this.req({url: '/cassia/info',
-                  method: 'POST',
-                  body: conf});
-    } else {
-      return this.req('/cassia/info');
+
+    /**
+     * get gateway configuration
+     * @param {*} conf
+     * @returns 
+     */
+    getInfo(fields) {
+        let qs = {};
+        if (fields) {
+            if (!Array.isArray(fields)) fields = [fields];
+            qs.fields = fields.join(',');
+        }
+        
+        return this.req({url: '/cassia/info', qs});
     }
-  }
+
+    setInfo(config) {
+        return this.req({url: '/cassia/info',
+            method: 'POST',
+            body: config});
+    }
+
+    setHighSpeedParams(params) {
+        return this.req({url: '/gap/hs-mlink-params',
+            method: 'POST',
+            body: params});
+    }
   /**
    * let the hub start scan, this method will return a EventSource
    * @param {Object} [option]
@@ -207,9 +250,32 @@ class Router extends EventEmitter {
     });
   }
 
+    startContainer() {
+        return this.req({url: '/cassia/container/start', method: 'POST'});
+    }
+
+    stopContainer() {
+        return this.req({url: '/cassia/container/stop', method: 'POST'});
+    }
+
+    resetContainer() {
+        return this.req({url: '/cassia/container/reset', method: 'POST'});
+    }
+
+    deleteContainer() {
+        return this.req({
+            url: '/cassia/container', 
+            method: 'DELETE'
+        });
+    }
+
+    conns() {
+      return this.req({url: '/conns'});
+    }
+
   destroy() {
     this.removeAllListeners();
   }
 }
 
-module.exports = Router;
+module.exports = Gateway;

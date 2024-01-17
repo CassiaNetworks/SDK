@@ -1,4 +1,4 @@
 module.exports = {
-  Router: require('./Router'),
+  Gateway: require('./Gateway'),
   AC: require('./AC')
 }

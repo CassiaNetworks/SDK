@@ -1,7 +1,7 @@
-const Router = require('./Router');
+const Gateway = require('./Gateway');
 const debug = require('debug')('cassia-ac');
 
-class AC extends Router {
+class AC extends Gateway {
   constructor(options) {
     super(options);
     if (!this.address.endsWith('api') || !this.address.endsWith('api/')) {
@@ -22,6 +22,7 @@ class AC extends Router {
     }).then(authinfo => {
       let token = authinfo['access_token'];
       let expires = authinfo['expires_in'];
+      debug('auth result', authinfo);
       this.headers.Authorization = 'Bearer ' + token;
       if (autoRefresh) {
         setTimeout(this.auth.bind(this, developer, secret, true), (expires - 10) * 1000);
@@ -30,35 +31,36 @@ class AC extends Router {
   }
 
   /**
-   * get router object to call restful api via AC
-   * @param {String} mac router mac 
+   * get gateway object to call restful api via AC
+   * @param {String} mac gateway mac 
    */
-  getRouter(mac) {
+  getGateway(mac) {
     this.qs.mac = mac;
-    return new Router({
+    return new Gateway({
       address: this.address,
       qs: this.qs,
-      headers: this.headers
+      headers: this.headers,
+      mode: 'ac-managed'
     });
   }
 
-  getAllRouters() {
+  getAllGateways() {
     return this.req('/ac/ap');
   }
 
   /**
    * @return {Object} an instance of EventSource
    * */
-  routerStatus() {
+  gatewayStatus() {
     return this.sse('/cassia/hubStatus');
   }
   /**
-   * @param routerMac router mac, optional
-   * @return position by router *
+   * @param gatewayMac gateway mac, optional
+   * @return position by gateway *
    **/
-  getLocationByRouter(routerMac) {
-    if (routerMac) {
-      return this.req(`/middleware/position/by-ap/${routerMac}`);
+  getLocationByGateway(gatewayMac) {
+    if (gatewayMac) {
+      return this.req(`/middleware/position/by-ap/${gatewayMac}`);
     } else {
       return this.req('/middleware/position/by-ap/*');
     }
@@ -76,12 +78,12 @@ class AC extends Router {
     }
   }
 
-  getOnlineRouters() {
-    return this.req('/ac/ap');
+  getOnlineGateways() {
+    return this.req('/ac/ap').then(gateways => gateways.filter(g => g.status == 'online'));
   }
 
   /**
-   * enable or disable router auto-selection function
+   * enable or disable gateway auto-selection feature
    * @param _switch - switch
    * @return http response body
    */
@@ -96,8 +98,8 @@ class AC extends Router {
   }
 
   /**
-   * connect device by auto-selecting one router
-   * @param {*} aps routers' list
+   * connect device by auto-selecting one gateway
+   * @param {*} aps gateways' list(MAC)
    * @param {*} devices devices' list(now only support one device)
    * @return http response body
    */
@@ -147,6 +149,130 @@ class AC extends Router {
       return es;
     });
   }
+
+  /**
+   * 
+   * @param {*} type firmware type, can be 'router' or 'container'
+   * @returns 
+   */
+  getFirmwares(type) {
+    if (type == 'gateway') type = 'router'; // compatible name
+    return this.req({
+      url: '/ac/firmware',
+      method: 'GET',
+    }).then(firmwares => firmwares['firmware'][type]);
+  }
+
+  upgradeGateway(mac, targetVersion) {
+    return this.getFirmwares('gateway').then(firmwares => {
+      let targetFirmware = firmwares.filter((f) => f.version == targetVersion);
+      if (targetFirmware.length == 0) {
+        throw new Error('target version not found');
+      }
+      return targetFirmware[0].id;
+    }).then(firmwareId => {
+      return this.req({
+        url: `/ac/ap/${mac}/upgrade`,
+        method: 'POST',
+        body: {mac: mac, firmware: firmwareId},
+      });
+    })
+  }
+
+  installContainer(mac, targetVersion) {
+    return this.getFirmwares('container').then(firmwares => {
+      let targetFirmware = firmwares.filter((f) => f.version == targetVersion);
+      if (targetFirmware.length == 0) {
+        throw new Error('target version not found');
+      }
+      return targetFirmware[0];
+    }).then(firmware => {
+      return this.req({
+        url: `/cassia/container/ac_install`,
+        qs: {mac},
+        method: 'POST',
+        body: {
+            "operation":"download",
+            "imgfile":firmware.path,
+            "imgsize":firmware.size,
+            "imgurl":`http://use_ac_pub_ip/firmware/download/${firmware.id}/container`},
+      });
+    })
+  }
+
+  installContainerApp(mac, targetVersion) {
+    return this.getFirmwares('app').then(firmwares => {
+      let targetFirmware = firmwares.filter((f) => f.version == targetVersion);
+      if (targetFirmware.length == 0) {
+        throw new Error('target version not found');
+      }
+      return targetFirmware[0];
+    }).then(firmware => {
+      return this.req({
+        url: `/cassia/container/app/ac_install`,
+        qs: {mac},
+        method: 'POST',
+        body: {
+            "name": firmware.version,
+            "operation": "download",
+            "pkgname": firmware.path,
+            "pkgsize": firmware.size,
+            "pkgurl": `http://use_ac_pub_ip/firmware/download/${firmware.id}/app`,
+        }
+      });
+    })
+  }
+
+    /**
+     * discover new gateways
+     * @returns 
+     */
+    discoverGateways() {
+        return this.req({
+          url: '/ac/ap-discover',
+          method: 'GET',
+        }).then(gateways => {
+          gateways.pop(); // the last element is the number left for license
+          return gateways;
+        });
+    }
+
+    /**
+     * add gateway to ac
+     * @param {*} name gateway's name
+     * @param {*} mac gateway's MAC
+     * @returns 
+     */
+    addGateway(name, mac) {
+        return this.req({
+            url: '/ac/ap',
+            method: 'POST',
+            body: {name, mac}
+        });
+    }
+
+    export(fields, path) {
+      return this.reqFile({url: '/ac/setting/export/all?fields=' + fields.join(','), json:false}, path);
+    }
+
+    statistics(item, from, to) {
+      return this.req({
+        url: `/ac/stats/${item}/${from}/${to}/query`,
+      });
+    }
+
+    dashboard(type) {
+      return this.req({
+        url: `/ac/dashboard/${type}`,
+      });
+    }
+
+    apiStatus(query) {
+      return this.req({
+        url: `/v2/status`,
+        qs: query || '',
+      });
+    }
 }
 
 module.exports = AC;

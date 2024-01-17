@@ -7,27 +7,26 @@ Cassia bluetooth SDK, for AC and AP, refer https://cassiasdk.docs.apiary.io
 
 # Sample
 ```javascript
-var co = require('co');
-var {Router} = require('node-cassia-sdk');
-var IP = '192.168.0.38';
+var {Gateway} = require('node-cassia-sdk');
+var IP = '10.100.245.44';
 
-co(function *() {
-  var r = new Router(IP);  
-  var list = yield r.getConnectedDevices();
+(async function () {
+  var gateway = new Gateway(IP);
+  var list = await gateway.getConnectedDevices();
   console.log(list);
-  let es = r.scan({active:1});
-  r.on('scan', (d) => {
+  let es = gateway.scan({active:1});
+  gateway.on('scan', (d) => {
     console.log(d);
   });
   // you can stop scan use es.close();
-  yield r.listenNotify();
-  r.on('notify', (d) => {
+  await gateway.listenNotify();
+  gateway.on('notify', (d) => {
     console.log(d);
   });
-  r.on('error', (e) => {
+  gateway.on('error', (e) => {
     console.log('emit error', e);
   });
-}).catch((e) => {
+})().catch((e) => {
   console.log('catch error', e);
 });
 ```
